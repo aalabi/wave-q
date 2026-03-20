@@ -1,0 +1,164 @@
+# Fix for Apache AUTHORIZATION http header as it is stripped by default for security and should be
+# enabled explicity when needed
+SetEnvIf Authorization .+ HTTP_AUTHORIZATION=$0
+
+Options -Indexes
+
+RewriteEngine On    # Turn on the rewriting engine
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME} !-f
+
+# Authentication
+RewriteRule    ^sessions/([0-9]+)$          controller/sessions.php?id=$1    [L]    # Handle session id requests
+RewriteRule    ^sessions$                   controller/sessions.php      [L]    # Handle login requests
+
+# Users
+RewriteRule    ^players/([0-9]+)$          controller/players.php?id=$1    [L]    # Handle player id requests
+RewriteRule    ^users/page/([0-9]+)$     controller/users.php?page=$1    [L]    # Handle page requests
+RewriteRule    ^users$                   controller/users.php     [L]    # Handle user requests
+
+# Profiles
+RewriteRule    ^profiles/([0-9]+)$          controller/profiles.php?profileId=$1    [L]    # Handle profile id requests
+RewriteRule    ^profiles/page/([0-9]+)$     controller/profiles.php?page=$1    [L]    # Handle page requests
+RewriteRule    ^profiles$                   controller/profiles.php     [L]    # Handle profile requests
+
+# Schools
+RewriteRule    ^schools/([0-9]+)$          controller/schools.php?schoolId=$1    [L]    # Handle school id requests
+RewriteRule    ^schools/page/([0-9]+)$     controller/schools.php?page=$1    [L]    # Handle page requests
+RewriteRule    ^schools$                   controller/schools.php     [L]    # Handle school requests
+RewriteRule    ^schools/search/(.*)$      controller/schools.php?search=$1     [L]    # Handle search schools requests
+
+# School Level
+RewriteRule    ^school-level/([0-9]+)$          controller/school-level.php?levelId=$1    [L]    # Handle school id requests
+RewriteRule    ^school-level$                   controller/school-level.php     [L]    # Handle school requests
+
+# Subjects
+RewriteRule    ^subjects/([0-9]+)$          controller/subjects.php?subjectId=$1    [L]    # Handle subject id requests
+RewriteRule    ^subjects/page/([0-9]+)$     controller/subjects.php?page=$1    [L]    # Handle page requests
+RewriteRule    ^subjects$                   controller/subjects.php     [L]    # Handle subject requests
+
+# School-And-Levels
+RewriteRule    ^school-and-levels/([0-9]+)$          controller/school-and-levels.php?schoolAndLevelId=$1    [L]    # Handle school-and-level id requests
+RewriteRule    ^school-and-levels/page/([0-9]+)$     controller/school-and-levels.php?page=$1    [L]    # Handle page requests
+RewriteRule    ^school-and-levels$                   controller/school-and-levels.php     [L]    # Handle school-and-level requests
+
+# Term-Achievements
+RewriteRule    ^term-achievements/([0-9]+)$          controller/term-achievements.php?termAchievementId=$1    [L]    # Handle term-achievement id requests
+RewriteRule    ^term-achievements/page/([0-9]+)$     controller/term-achievements.php?page=$1    [L]    # Handle page requests
+RewriteRule    ^term-achievements$                   controller/term-achievements.php     [L]    # Handle term-achievement requests
+
+# Teacher-Activities
+RewriteRule    ^teacher-activities/([0-9]+)$          controller/teacher-activities.php?activityId=$1    [L]    # Handle teacher-activities id requests
+RewriteRule    ^teacher-activities/page/([0-9]+)$     controller/teacher-activities.php?page=$1    [L]    # Handle page requests
+RewriteRule    ^teacher-activities$                   controller/teacher-activities.php     [L]    # Handle teacher-activities requests
+
+# Admins 
+RewriteRule    ^admins/([0-9]+)$          controller/admins.php?profileId=$1    [L]    # Handle admin id requests
+RewriteRule    ^admins/page/([0-9]+)$     controller/admins.php?page=$1    [L]    # Handle page requests
+RewriteRule    ^admins$                   controller/admins.php     [L]    # Handle admin requests
+
+# School Staffs
+RewriteRule    ^school-staffs/([0-9]+)$          controller/school-staffs.php?profileId=$1    [L]    # Handle school id requests
+RewriteRule    ^school-staffs/page/([0-9]+)$     controller/school-staffs.php?page=$1    [L]    # Handle page requests
+RewriteRule    ^school-staffs$                   controller/school-staffs.php     [L]    # Handle school requests
+RewriteRule    ^school-staffs/school/([0-9]+)$     controller/school-staffs.php?schoolId=$1    [L]    # Handle schools requests
+
+# Logins
+RewriteRule    ^logins/([0-9]+)$            controller/logins.php?profileId=$1    [L]    # Handle login id requests
+RewriteRule    ^logins/profileId/([0-9]+)$            controller/logins.php?profileId=$1    [L]    # Handle profile id 
+RewriteRule    ^logins/page/([0-9]+)$       controller/logins.php?page=$1    [L]    # Handle page requests
+RewriteRule    ^logins/username/([A-Za-z0-9].+)/resetCode/([A-Za-z0-9]+)$       controller/logins.php?username=$1&resetCode=$2    [L]    # Handle totken requests
+RewriteRule    ^logins/username/([A-Za-z0-9].+)$       controller/logins.php?username=$1    [L]    # Handle token requests
+RewriteRule    ^logins$                     controller/logins.php     [L]    # Handle login requests
+
+# Curriculum-Copies
+RewriteRule    ^curriculum-copies/([0-9]+)$          controller/curriculum-copies.php?curriculumCopyId=$1    [L]    # Handle curriculum-copies id requests
+RewriteRule    ^curriculum-copies/page/([0-9]+)$     controller/curriculum-copies.php?page=$1    [L]    # Handle page requests
+RewriteRule    ^curriculum-copies$                   controller/curriculum-copies.php     [L]    # Handle curriculum-copies requests
+
+# Curriculum-Resources
+RewriteRule    ^curriculum-resources/([0-9]+)$          controller/curriculum-resources.php?curriculumResourceId=$1    [L]    # Handle curriculum-resources id requests
+RewriteRule    ^curriculum-resources/page/([0-9]+)$     controller/curriculum-resources.php?page=$1    [L]    # Handle page requests
+RewriteRule    ^curriculum-resources$                   controller/curriculum-resources.php     [L]    # Handle curriculum-resources requests
+
+# Payments
+RewriteRule    ^payments/([a-zA-Z0-9]+)$          controller/payments.php?referenceNo=$1    [L]    # Handle payments id requests
+RewriteRule    ^payments/page/([0-9]+)$     controller/payments.php?page=$1    [L]    # Handle page requests
+RewriteRule    ^payments/profileId/([0-9]+)$     controller/payments.php?profileId=$1    [L]    # Handle profile requests
+RewriteRule    ^payments$                   controller/payments.php     [L]    # Handle payments requests
+
+# Subscriptions
+RewriteRule    ^subscriptions/([0-9]+)$          controller/subscriptions.php?subscriptionId=$1    [L]    # Handle subscriptions id requests
+RewriteRule    ^subscriptions/page/([0-9]+)$     controller/subscriptions.php?page=$1    [L]    # Handle page requests
+RewriteRule    ^subscriptions/profileId/([0-9]+)$     controller/subscriptions.php?profileId=$1    [L]    # Handle profile requests
+RewriteRule    ^subscriptions$                   controller/subscriptions.php     [L]    # Handle subscriptions requests
+
+# Subject-Teachers
+RewriteRule    ^subject-teachers/([0-9]+)$          controller/subject-teachers.php?subjectTeacherId=$1    [L]    # Handle subject-teachers id requests
+RewriteRule    ^subject-teachers/page/([0-9]+)$     controller/subject-teachers.php?page=$1    [L]    # Handle page requests
+RewriteRule    ^subject-teachers$                   controller/subject-teachers.php     [L]    # Handle subject-teachers requests
+
+# Curriculum-Contents
+RewriteRule    ^curriculum-contents/([0-9]+)$          controller/curriculum-contents.php?curriculumContentId=$1    [L]    # Handle subject-teachers id requests
+RewriteRule    ^curriculum-contents/page/([0-9]+)$     controller/curriculum-contents.php?page=$1    [L]    # Handle page requests
+RewriteRule    ^curriculum-contents$                   controller/curriculum-contents.php     [L]    # Handle curriculum requests
+RewriteRule    ^curriculum-contents/volume/([0-9]+)/subject/([0-9]+)$     controller/curriculum-contents.php?volume=$1&subject=$2   [L]    # Handle curriculum request based on school level and subject
+RewriteRule    ^curriculum-contents/volume/([0-9]+)/class/([0-9]+)/subject/([0-9]+)/term/([0-9]+)/week/([0-9]+)$     controller/curriculum-contents.php?volume=$1&class=$2&subject=$3&term=$4&week=$5   [L]    # Handle curriculum request based on school level, class, subject, term and week
+RewriteRule    ^curriculum-contents/subjects/volume/([0-9]+)/class/([0-9]+)$     controller/curriculum-contents.php?volume=$1&class=$2    [L]    # Handle all subjects in a curriculum for a particular class
+
+# Book-Lists
+RewriteRule    ^book-lists/([0-9]+)$          controller/book-lists.php?bookListId=$1    [L]    # Handle book-list id requests
+RewriteRule    ^book-lists/page/([0-9]+)$     controller/book-lists.php?page=$1    [L]    # Handle page requests
+RewriteRule    ^book-lists/rating/([0-9]+)$     controller/book-lists.php?ratingId=$1    [L]    # Handle rating requests
+RewriteRule    ^book-lists/volume/([0-9]+)/class/([0-9]+)/subject/([0-9]+)$     controller/book-lists.php?volume=$1&class=$2&subject=$3    [L]    # Handle book list for a school level and class
+RewriteRule    ^book-lists/subjects/volume/([0-9]+)/class/([0-9]+)     controller/book-lists.php?volume=$1&class=$2    [L]    # Handle all subject in a book list for a particular class
+RewriteRule    ^book-lists$                   controller/book-lists.php     [L]    # Handle book-lists requests
+
+# Book-List-Volume
+RewriteRule    ^book-list-volumes/([0-9]+)$          controller/book-list-volumes.php?bookListVolumeId=$1    [L]    # Handle book-list id requests
+RewriteRule    ^book-list-volumes/page/([0-9]+)$     controller/book-list-volumes.php?page=$1    [L]    # Handle page requests
+RewriteRule    ^book-list-volumes$                   controller/book-list-volumes.php     [L]    # Handle book-lists requests
+
+# Publishers
+RewriteRule    ^publishers/([0-9]+)$          controller/publishers.php?publisherId=$1    [L]    # Handle publishers  id requests
+RewriteRule    ^publishers/page/([0-9]+)$     controller/publishers.php?page=$1    [L]    # Handle page requests
+RewriteRule    ^publishers$                   controller/publishers.php     [L]    # Handle publishers requests
+RewriteRule    ^publishers/search/(.*)$      controller/publishers.php?search=$1     [L]    # Handle search publishers requests
+
+# Inbox
+RewriteRule    ^inbox$          inbox/index.php [L]    # Handle inbox
+
+# Feedback
+RewriteRule    ^feedbacks$          controller/feedbacks.php    [L]    # Handle feedback
+
+# Account Deletion
+RewriteRule    ^delete$          controller/delete.php    [L]    # Handle feedback
+
+# Utilizations
+RewriteRule    ^utilizations/([0-9]+)$          controller/utilizations.php?id=$1    [L]    # Handle utilizations id requests
+RewriteRule    ^utilizations/page/([0-9]+)$     controller/utilizations.php?page=$1    [L]    # Handle page requests
+RewriteRule    ^utilizations$                   controller/utilizations.php     [L]    # Handle utilizations requests
+RewriteRule    ^utilizations/profileId/([0-9]+)/type/([A-Za-z0-9].+)/startDate/([A-Za-z0-9].+)/endDate/([A-Za-z0-9].+)$     controller/utilizations.php?profileId=$1&type=$2&startDate=$3&endDate=$4    [L]    # Handle profile requests
+RewriteRule    ^utilizations/end/profileId/([0-9]+)$     controller/utilizations.php?profileId=$1    [L]    # Handle page requests
+
+# LGA
+RewriteRule ^lga/([a-zA-Z0-9]+)$ controller/lga.php?state=$1 [L]
+
+# Resource Access
+RewriteRule    ^resource-access/([0-9]+)$          controller/resource-access.php?id=$1    [L]    # Handle resource-access id requests
+RewriteRule    ^resource-access/page/([0-9]+)$     controller/resource-access.php?page=$1    [L]    # Handle page requests
+RewriteRule    ^resource-access$                   controller/resource-access.php     [L]    # Handle resource-access requests
+RewriteRule    ^resource-access/profile/([0-9]+)$     controller/resource-access.php?profileId=$1    [L]    # Handle a profile requests
+RewriteRule    ^resource-access/school/([0-9]+)$     controller/resource-access.php?schoolId=$1    [L]    # Handle a school requests
+
+# Chat Access
+RewriteRule    ^chat/([0-9]+)$          controller/chat.php?id=$1    [L]    # Handle chat id requests
+RewriteRule    ^chat/page/([0-9]+)$     controller/chat.php?page=$1    [L]    # Handle page requests
+RewriteRule    ^chat$                   controller/chat.php     [L]    # Handle chat requests
+RewriteRule    ^chat/resource/([A-Za-z0-9].+)/resourceId/([0-9]+)     controller/chat.php?resource=$1&resourceId=$2    [L]    # Handle a profile requests
+RewriteRule    ^chat/top          controller/chat.php?top=1    [L]    # Handle top chat requests
+
+# Subjects
+RewriteRule    ^category/([0-9]+)$          controller/category.php?categoryId=$1    [L]    # Handle category id requests
+RewriteRule    ^category/page/([0-9]+)$     controller/category.php?page=$1    [L]    # Handle page requests
+RewriteRule    ^category$                   controller/category.php     [L]    # Handle category requests
