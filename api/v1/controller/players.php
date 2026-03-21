@@ -4,91 +4,83 @@ require_once dirname(__FILE__, 4) . DIRECTORY_SEPARATOR . "config.php";
 // check if id is in the url e.g. /players/1
 if (array_key_exists("id",$_GET)) {
     $id = trim($_GET['id']);
-
-    $accessToken = isset($_SERVER['HTTP_AUTHORIZATION']) ? $_SERVER['HTTP_AUTHORIZATION'] : "";
-    $accessToken = Session::trimBearer($accessToken);
-    if(!Session::isAnAccessTokenValid($accessToken)) {
-        Response::sendBadResponse(Response::UNAUTHORIZED, ["Invalid access token provided"]);
+    try{
+        $player = new Player($id);
+        $playerInfo = $player->getInfo();
+    } catch (UserException $e) {
+        Response::sendBadResponse(Response::BAD_REQUEST, [$e->getMessage()]);
     }
 
     if($_SERVER['REQUEST_METHOD'] === 'GET'){
+        $accessToken = isset($_SERVER['HTTP_AUTHORIZATION']) ? $_SERVER['HTTP_AUTHORIZATION'] : "";
+        $accessToken = Session::trimBearer($accessToken);
+        if(!Session::isAnAccessTokenValid($accessToken)) {
+            Response::sendBadResponse(Response::UNAUTHORIZED, ["Invalid access token provided"]);
+        }
+        
         try{
-            $profileId = Session::profileIdFromAccessToken($accessToken);
-            $player = new Player($id);
-            $playerInfo = $player->getInfo();
-    
+            if($id != Session::profileIdFromAccessToken($accessToken)){
+                Response::sendBadResponse(Response::UNAUTHORIZED, ["player/access token mismatch"]);
+            }
             Response::sendGoodResponse(["Player info"], $playerInfo, true, Response::OK);
-        } catch (SessionExpection | UserException $e) {
+            
+        } catch (SessionExpection $e) {
             Response::sendBadResponse(Response::BAD_REQUEST, [$e->getMessage()]);
         }
     }
     // if request is a PATCH, e.g. update player info
+    //TODO
     elseif($_SERVER['REQUEST_METHOD'] === 'PATCH') {    
-        // check request's content type header is JSON
         if($_SERVER['CONTENT_TYPE'] !== 'application/json') {
             Response::sendBadResponse(Response::BAD_REQUEST, ["Content Type header not set to JSON"]);
         }
 
-        // get PATCH request body as the PATCHed data will be JSON format
         $rawPatchdata = file_get_contents('php://input');
 
         if(!$jsonData = json_decode($rawPatchdata)) {    
             Response::sendBadResponse(Response::BAD_REQUEST, ["Request body is not valid JSON"]);
         }
 
-        // check if patch request contains refresh token
-        if(!isset($jsonData->refresh_token) || empty(trim($jsonData->refresh_token)))  {
-            $msg = [];
-            !isset($jsonData->refresh_token) ? $msg[] = "Refresh Token not supplied" : false;
-            empty(trim($jsonData->refresh_token)) ? $msg[] = "Refresh Token cannot be blank" : false;
-            Response::sendBadResponse(Response::BAD_REQUEST, ["Request body is not valid JSON"]);
-        }
-              
-        $refreshToken = $jsonData->refresh_token;
-        if(!$session->isValidRefreshToken($accessToken, $refreshToken)) {
-            Response::sendBadResponse(Response::UNAUTHORIZED, ["Invalid access token or refresh token provided"]);
-        }
-    
-        if($sessionInfo['logger']['status'] !== LoggerMgr::STATUS_VALUES['active']) {
-            Response::sendBadResponse(Response::UNAUTHORIZED, ["inactive account"]); 
-        }
-
-        if(strtotime($sessionInfo['session']['refresh_token_expiry']) < time()) {
-            Response::sendBadResponse(Response::UNAUTHORIZED, ["Refresh token has expired - please log in again"]);
-        }
-
-        try {                
-            $session->renewTokens();
-        }
-        catch(SessionExpection $ex) {
-            Response::sendBadResponse(Response::INTERNAL_SERVER_ERROR, [$ex->getMessage()]);
-        }
-
-        $data = [];
-        if(isset($sessionInfo['session'])) {
-            $data['session_id'] = $sessionInfo['session']['id'];
-            $data['access_token'] = $sessionInfo['session']['access_token'];
-            $data['access_token_expiry'] = $sessionInfo['session']['access_token_expiry'];
-            $data['refresh_token'] = $sessionInfo['session']['refresh_token'];
-            $data['refresh_token_expiry'] = $sessionInfo['session']['refresh_token_expiry'];            
+        if(isset($jsonData->activation_token))  {
+            $activationToken = $jsonData->activation_token;
+            try{
+                $player->activate($activationToken);
+                Response::sendGoodResponse(["Player activate successfully"], $player->getInfo(), true, Response::OK);
+            }
+            catch (UserException $e) {
+                Response::sendBadResponse(Response::BAD_REQUEST, [$e->getMessage()]);
+            }            
         }
         else{
-            $data['session_id'] = $returned_id;
-            $data['access_token'] = $accessToken;
-            $data['access_token_expiry'] = $access_token_expiry_seconds;
-            $data['refresh_token'] = $refreshToken;
-            $data['refresh_token_expiry'] = $refresh_token_expiry_seconds;
-        }
-        Response::sendGoodResponse(["Access token refreshed successfully"], $data, code: Response::OK);                        
+            $accessToken = isset($_SERVER['HTTP_AUTHORIZATION']) ? $_SERVER['HTTP_AUTHORIZATION'] : "";
+            $accessToken = Session::trimBearer($accessToken);
+            if(!Session::isAnAccessTokenValid($accessToken)) {
+                Response::sendBadResponse(Response::UNAUTHORIZED, ["Invalid access token provided"]);
+            }
+
+            $newData = [];
+            isset($jsonData->name) && !empty($jsonData->name) ? $newData['name'] = $jsonData->name : null;
+            isset($jsonData->picture) && !empty($jsonData->picture) ? $newData['picture'] =$jsonData->picture : null;
+            isset($jsonData->mode) && !empty($jsonData->mode) ? $newData['mode'] = $jsonData->mode : null;
+            isset($jsonData->twofactor) && !empty($jsonData->twofactor) ? $newData['twofactor']=  $jsonData->twofactor : null;
+               
+            try{                
+                $player->update($newData);
+            }
+            catch(UserException $e){
+                Response::sendBadResponse(Response::BAD_REQUEST, [$e->getMessage()]);
+            }
+
+            Response::sendGoodResponse(["Player info updated successfully"], $player->getInfo(), code: Response::OK);  
+        }                      
     }
     // error when not DELETE or PATCH
     else {
         Response::sendBadResponse(Response::METHOD_NOT_ALLOWED, ["Request method not allowed 1"]);
     } 
 }
-// handle creating new session, e.g. log in
+// handle creating new player
 elseif(empty($_GET)) {
-    // handle creating new session, e.g. logging in
     if($_SERVER['REQUEST_METHOD'] !== 'POST') {
         Response::sendBadResponse(Response::METHOD_NOT_ALLOWED, ["Request method not allowed 2"]);
     }
@@ -117,12 +109,13 @@ elseif(empty($_GET)) {
         $identifierType = $jsonData->identifierType;
         $identifierValue = $jsonData->identifierValue;
         $password = $jsonData->password;
+        $name = isset($jsonData->name) ? $jsonData->name : "Firstname Surname";
 
-        $session = Session::create($password, $identifierValue, $identifierType);
-        $sessionInfo = $session->getInfo();
-        Response::sendGoodResponse(["Session created successfully"], $sessionInfo, code: Response::CREATED);
+        $player = Player::create($name, ['player'], $password, $identifierValue, $identifierType);
+        $playerInfo = $player;
+        Response::sendGoodResponse(["Player created successfully"], $playerInfo, code: Response::CREATED);
     }
-    catch(SessionExpection $ex) {
+    catch(UserException $ex) {
         Response::sendBadResponse(Response::UNAUTHORIZED, [$ex->getMessage()]);
     }
 }

@@ -65,6 +65,19 @@ class Player extends \User
         return $userInfo;
     }
 
+    public function activate(string $token):void{
+        $tblLogger = LoggerMgr::TABLE;
+        $loggerId = parent::loggerIdUsernamePhoneFrmProfileId($this->id)['logger'];
+        $sql = "UPDATE $tblLogger SET status = :status WHERE id = :id AND activation_token = :token";
+        $param = ['id' => $loggerId, 'token' => $token, 'status' => parent::STATUS['active']];
+        
+        if($this->query->executeSql($sql, $param)['rowCount']){
+            //TODO: send notification
+        }
+        else{
+            throw new UserException("player activation failed");
+        }
+    }
 
     /**
      * for retrieving an player information
@@ -92,6 +105,67 @@ class Player extends \User
         $playerInfo['player'] = $profileTypeInfo;
         $playerInfo['type'] = 'player';
         return $playerInfo;
+    }
+
+    public function update(array $data):void{
+        $profileSql = $playerSql = "";
+        $profileParam = $playerParam = [];
+        
+        if(isset($data['name'])){
+            if($profileSql){
+                $profileSql .= " ,name = :name ";
+                $profileParam['name'] = $data['name'];
+            }
+            else{
+                $profileSql .= " UPDATE ".ProfileMgr::TABLE." SET name = :name ";
+                $profileParam['name'] = $data['name'];
+            }
+        }
+
+        if(isset($data['picture'])){
+            if($profileSql){
+                $profileSql .= " ,picture = :picture ";
+                $profileParam['picture'] = $data['picture'];
+            }
+            else{
+                $profileSql .= " UPDATE ".ProfileMgr::TABLE." SET picture = :picture ";
+                $profileParam['picture'] = $data['picture'];
+            }
+        }
+
+        if(isset($data['mode'])){
+            if($playerSql){
+                $playerSql .= " ,mode = :mode ";
+                $playerParam['mode'] = $data['mode'];
+            }
+            else{
+                $playerSql .= " UPDATE ".self::TABLE." SET mode = :mode ";
+                $playerParam['mode'] = $data['mode'];
+            }
+        }
+
+        if(isset($data['twofactor'])){
+            if($playerSql){
+                $playerSql .= " ,twofactor = :twofactor ";
+                $playerParam['twofactor'] = $data['twofactor'];
+            }
+            else{
+                $playerSql .= " UPDATE ".self::TABLE." SET twofactor = :twofactor ";
+                $playerParam['twofactor'] = $data['twofactor'];
+            }
+        }
+        try{
+            if($profileSql && $profileParam){
+                $this->query->executeSql($profileSql, $profileParam);
+            }
+    
+            if($playerSql && $playerParam){
+                $this->query->executeSql($playerSql, $playerParam);
+            }
+        }
+        catch(Exception $e){
+            throw new UserException("Player info update failed");
+        }
     }
 
     /**

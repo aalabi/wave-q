@@ -12,10 +12,9 @@ RewriteCond %{REQUEST_FILENAME} !-f
 RewriteRule    ^sessions/([0-9]+)$          controller/sessions.php?id=$1    [L]    # Handle session id requests
 RewriteRule    ^sessions$                   controller/sessions.php      [L]    # Handle login requests
 
-# Users
+# Player
 RewriteRule    ^players/([0-9]+)$          controller/players.php?id=$1    [L]    # Handle player id requests
-RewriteRule    ^users/page/([0-9]+)$     controller/users.php?page=$1    [L]    # Handle page requests
-RewriteRule    ^users$                   controller/users.php     [L]    # Handle user requests
+RewriteRule    ^players$                   controller/players.php      [L]    # Handle players requests
 
 # Profiles
 RewriteRule    ^profiles/([0-9]+)$          controller/profiles.php?profileId=$1    [L]    # Handle profile id requests

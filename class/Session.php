@@ -174,14 +174,7 @@ class Session
      */
     public function isValidAccessToken(string $accessToken):bool
     {
-        $isValid = false;
-        $info = isset($this->info['session']) ? $this->info['session'] : $this->info;
-        $hashedAccessToken = hash('sha256', $accessToken);
-        $storedAccessToken = (new Table(self::TABLE))->retrieveOne($this->id)['access_token'];
-        if ($storedAccessToken === $hashedAccessToken && new DateTime() < new DateTime($info['access_token_expiry'])) {
-            $isValid = true;
-        }
-        return $isValid;
+        return self::validatedAccessTokenData($accessToken, $this->id);
     }
 
     /**
@@ -209,15 +202,34 @@ class Session
      */
     public static function isAnAccessTokenValid(string $accessToken):bool
     {
-        $isValid = false;
+        return self::validatedAccessTokenData($accessToken);
+    }
+
+    /**
+     * Validates an access token by checking if it exists in the session table and has not expired.
+     * If an id is supplied, it will also check if the access token is associated with the session of the supplied id.
+     *
+     * @param string $accessToken the access token to validate
+     * @param int|null $id the session id to check (optional)
+     * @return bool true if the access token is valid, false otherwise
+     */
+    private static function validatedAccessTokenData(string $accessToken, ?int $id = null): bool
+    {
+        $valid = false;
         $hashedAccessToken = hash('sha256', $accessToken);
-        if($info = (new Table(self::TABLE))->retrieve(where:['access_token'=> ['=',$hashedAccessToken,'isValue']])){
+
+        $where = $id !== null ? ['id' => ['=', $id, 'isValue', 'AND'], 'access_token' => ['=', $hashedAccessToken, 'isValue']] : 
+            ['access_token' => ['=', $hashedAccessToken, 'isValue']];
+
+        if($info = (new Table(self::TABLE))->retrieve(where: $where)){
             $info = $info[0];
-            if (new DateTime() < new DateTime($info['access_token_expiry'])) {
-                $isValid = true;
-            }
         }
-        return $isValid;
+
+        if ($info && $info['access_token'] === $hashedAccessToken && new DateTime('now') < new DateTime($info['access_token_expiry'])) {
+            $valid = true;
+        }
+
+        return $valid;
     }
 
     /**

@@ -9,6 +9,14 @@ try {
     echo $e->getMessage();
     \Response::sendBadResponse(\Response::INTERNAL_SERVER_ERROR, [$e->getMessage()]);
 }
+
+/* $player = new Player(4);
+var_dump($player->getInfo());
+$player->update(['name'=>'Tunde Mayana', 'picture'=>'1', 'mode'=>'dark']);
+var_dump($player->getInfo()); */
+//$player->activate("787770");
+//var_dump($player->getInfo());
+
 //$query = new \Query();
 //$appSettings = new \AppSettings('winner');
 
