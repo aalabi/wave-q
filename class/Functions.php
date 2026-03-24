@@ -634,4 +634,46 @@ class Functions
         return $decrypted ?: null;
     }
 
+    /**
+     * Retrieves the JSON data from the request body.
+     *
+     * This function checks that the request body is valid JSON and that the Content-Type header is set to application/json.
+     * If either of these conditions is not met, it sends a bad request response with an error message.
+     *
+     * @return object The JSON data from the request body as a PHP object.
+     */
+    public static function getJsonInput() {
+        if (strpos($_SERVER['CONTENT_TYPE'] ?? '', 'application/json') === false) {
+            Response::sendBadResponse(Response::BAD_REQUEST, ["Content Type must be application/json"]);
+        }
+
+        $data = json_decode(file_get_contents('php://input'));
+
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            Response::sendBadResponse(Response::BAD_REQUEST, ["Invalid JSON"]);
+        }
+
+        return $data;
+    }
+
+    /**
+     * Retrieves the access token from the Authorization header.
+     *
+     * This function removes the "Bearer " prefix from the access token and returns the trimmed token.
+     *
+     * @return string The trimmed access token.
+     */
+    public static function getAccessToken() {
+        $token = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
+        return Session::trimBearer($token);
+    }
+
+    public static function requireAuth() {
+        $token = self::getAccessToken();
+        if (!Session::isAnAccessTokenValid($token)) {
+            Response::sendBadResponse(Response::UNAUTHORIZED, ["Invalid access token"]);
+        }
+        return $token;
+    }
+
 }

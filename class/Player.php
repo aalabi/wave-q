@@ -18,8 +18,15 @@ class Player extends \User
     /** @var string player table*/
     public const TABLE = "player";
 
+    /** @var array collection of mode values */
+    protected const DISPLAY_MODES = ['light', 'dark', 'light'=>'light', 'dark'=>'dark'];
+
+    /** @var array collection of two factors values */
+    protected const TWO_FACTORS = ['yes', 'no', 'yes'=>'yes', 'no'=>'no'];
+
     /** @var \Table an instance of \Table  */
     protected \Table $tblPlayer;
+
 
     /**
      * instantiation of Player
@@ -56,15 +63,103 @@ class Player extends \User
         array $subProfileType,
         string $password = "",
         string $identity = "",
-        string $identityType = \Authentication::ALL_IDENTITY_TYPE['email']
+        string $identityType = \Authentication::ALL_IDENTITY_TYPE['email'],
+        string $phone = "",
+        string $username = ""
     ):array {
-        $userInfo =  parent::create($name, ['type' => 'player', 'subType' => $subProfileType[0]], $password, $identity, $identityType);
-        $profileNo = "PLA".str_pad($userInfo['profile']['id'], 4, "0", STR_PAD_LEFT);
-        (new \Table(\ProfileMgr::TABLE))->updateOne($userInfo['profile']['id'], ['profile_no' => [$profileNo, 'isValue']]);
+        $userInfo = $loggerInfo = [];
+        $DbConnect = DbConnect::getInstance(SETTING_FILE);
+        
+        try {
+            $Query = new Query(LoggerMgr::TABLE);
+            $DbConnect->beginTransaction();
+
+            $columnName = "email, phone, username, password, activation_token, activation_time ";
+            $columnValue = ":email, :phone, :username, :password, :activationToken, :activationtime ";
+            $resultSql = "INSERT INTO " . LoggerMgr::TABLE . "($columnName) VALUES ($columnValue)";
+                
+            $loggerMgr = new LoggerMgr();
+            $result = $loggerMgr->validatePassword($password);
+            if ($result['errors']) {
+                throw new UserException(implode(', ', $result['errors']));
+            }
+            $password = $result['data'];
+
+            $otp = random_int(100_000, 999_999);
+            $result = $loggerMgr->validateActivationToken($otp);
+            if ($result['errors']) {
+                throw new UserException(implode(', ', $result['errors']));
+            }
+            $activationToken = $result['data'];
+                
+            $result = $loggerMgr->validateActivationTime();
+            if ($result['errors']) {
+                throw new UserException(implode(', ', $result['errors']));
+            }
+            $activationTokenTime = $result['data'];
+
+            $result = $loggerMgr->validateEmail($identity);
+            if ($result['errors']) {
+                throw new UserException(implode(', ', $result['errors']));
+            }
+            $email = $result['data'];
+                                
+            $result = $loggerMgr->validatePhone($phone);
+            if ($result['errors']) {
+                throw new UserException(implode(', ', $result['errors']));
+            }
+            $phone = $result['data'];
+                
+            $result = $loggerMgr->validateUsername($username);
+            if ($result['errors']) {
+                throw new UserException(implode(', ', $result['errors']));
+            }
+            $username = $result['data'];
+            
+            $resultBind = ['email'=>$email, 'phone'=>$phone, 'username'=>$username, 'password'=>$password, 
+                'activationToken'=>$activationToken, 'activationtime'=>$activationTokenTime];
+            $loggerId = $Query->executeSql($resultSql, $resultBind)['lastInsertId'];
+            $tblLogger = new Table(LoggerMgr::TABLE);
+            $loggerInfo = $tblLogger->retrieveOne($loggerId);    
+
+            $columnName = "profile_type , name, logger";
+            $columnValue = ":profile_type, :name, :logger";
+            $resultBind = ['profile_type' => self::PROFILE_TYPE_ID, 'name' => $name, 'logger' => $loggerId];
+            $resultSql = "INSERT INTO " . ProfileMgr::TABLE . "($columnName) VALUES ($columnValue)";
+            $profileId = $Query->executeSql($resultSql, $resultBind)['lastInsertId'];
+
+            $profileNo = "PLA".str_pad($profileId, 4, "0", STR_PAD_LEFT);
+            (new \Table(\ProfileMgr::TABLE))->updateOne($profileId, ['profile_no' => [$profileNo, 'isValue']]);
+
+            $Query->setTable(self::TABLE);
+            $sql = "INSERT INTO ".self::TABLE." (profile, type) VALUES (:profile, :type)";
+            $bind = ['profile'=>$profileId, 'type'=>'player' ];
+            $profileTypeTblId = $Query->executeSql($sql, $bind)['lastInsertId'];
+            
+            $DbConnect->commit();
+        } catch (Exception $e) {
+            $DbConnect->rollBack();
+            throw new UserException($e->getMessage());
+        }
+
+        $playerTbl = new Table(self::TABLE);
+        $tblProfile = new Table(ProfileMgr::TABLE);
+        $userInfo = [
+            'logger'=>$loggerInfo,
+            'profile'=>$tblProfile->retrieveOne($profileId),
+            'player'=>$playerTbl->retrieveOne($profileTypeTblId),
+            'type'=>'player'
+        ];
+
         parent::sendLoggerCreationMail($userInfo);
         return $userInfo;
     }
 
+    /**
+     * Activates a player with the given token
+     * @param string $token the activation token
+     * @throws UserException if the activation fails
+     */
     public function activate(string $token):void{
         $tblLogger = LoggerMgr::TABLE;
         $loggerId = parent::loggerIdUsernamePhoneFrmProfileId($this->id)['logger'];
@@ -73,6 +168,60 @@ class Player extends \User
         
         if($this->query->executeSql($sql, $param)['rowCount']){
             //TODO: send notification
+        }
+        else{
+            throw new UserException("player activation failed");
+        }
+    }
+
+    public function resendActivationToken():void{
+        $otp = random_int(100_000, 999_999);
+        $tokenTime = (new LoggerMgr())->validateActivationTime()['data'];
+        
+        $loggerId = parent::loggerIdUsernamePhoneFrmProfileId($this->id)['logger'];
+        $sql = "UPDATE ".LoggerMgr::TABLE." SET activation_token = :token, activation_time = :tokenTime WHERE id = :id AND status = :status";
+        $param = ['id' => $loggerId, 'token' => $otp, 'tokenTime' => $tokenTime, 'status' => parent::STATUS['inactive']];
+
+        if($this->query->executeSql($sql, $param)['rowCount']){
+            $settings = (new \Settings(SETTING_FILE, true))->getDetails();
+            $userInfo = $this->getInfo();
+            $body = "
+                <div style='font-family:Arial, Helvetica, sans-serif; background:#f4f6fb; padding:30px;'>
+                    <div style='max-width:600px; margin:auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 6px 24px rgba(0,0,0,0.08);'>                    
+                        <div style='padding:35px;'>
+                            <p style='font-size:15px;'>Hello <p>Hello {$userInfo['profile']['name']},</p>,</p>
+                            <p style='font-size:15px; line-height:1.6; color:#444;'>
+                                You requested for another OTP. Your account is still currently <strong>inactive</strong>. Use the One-Time Password (OTP) below to 
+                                activate your account.
+                            </p>
+                            <div style='text-align:center; margin:35px 0;'>
+                                <div style='display:inline-block;
+                                    font-size:32px;
+                                    letter-spacing:8px;
+                                    padding:18px 28px;
+                                    background:#ff3b30;
+                                    color:#ffffff;
+                                    border-radius:10px;
+                                    font-weight:bold;'>
+                                    $otp
+                                </div>
+                                <p style='margin-top:12px; font-size:13px; color:#666;'>
+                                    Activation OTP
+                                </p>
+                            </div>
+                            <p style='font-size:14px; color:#666; line-height:1.6;'>
+                                If you did not request for an OTP, please ignore this email.
+                            </p>
+                        </div>
+                        <div style='background:#f4f6fb; padding:18px; text-align:center; font-size:12px; color:#777;'>
+                            © " . date('Y') . " {$settings->sitename}
+                        </div>
+                    </div>
+                </div>";
+            $notification = new \Notification();
+            $to = [$userInfo['profile']['name']=>$userInfo['logger']['email']];
+            $from = [$settings->sitename=>"{$settings->emails[0]}@{$settings->domain}"];
+            $notification->sendMail(['to'=>$to, 'from'=>$from], 'Activation OTP', $body);
         }
         else{
             throw new UserException("player activation failed");
@@ -107,6 +256,12 @@ class Player extends \User
         return $playerInfo;
     }
 
+    /**
+     * Updates a player's information
+     *
+     * @param array $data an associative array containing the information to be updated
+     * @throws UserException if the update fails
+     */
     public function update(array $data):void{
         $profileSql = $playerSql = "";
         $profileParam = $playerParam = [];
@@ -134,6 +289,10 @@ class Player extends \User
         }
 
         if(isset($data['mode'])){
+            if(!in_array($data['mode'], self::DISPLAY_MODES)){
+                throw new UserException("invalid mode");
+            }
+
             if($playerSql){
                 $playerSql .= " ,mode = :mode ";
                 $playerParam['mode'] = $data['mode'];
@@ -145,6 +304,10 @@ class Player extends \User
         }
 
         if(isset($data['twofactor'])){
+            if(!in_array($data['twofactor'], self::TWO_FACTORS)){
+                throw new UserException("invalid mode");
+            }
+
             if($playerSql){
                 $playerSql .= " ,twofactor = :twofactor ";
                 $playerParam['twofactor'] = $data['twofactor'];
@@ -153,13 +316,18 @@ class Player extends \User
                 $playerSql .= " UPDATE ".self::TABLE." SET twofactor = :twofactor ";
                 $playerParam['twofactor'] = $data['twofactor'];
             }
-        }
+        }        
+
         try{
             if($profileSql && $profileParam){
+                $profileSql .= " WHERE id = :id";
+                $profileParam['id'] = $this->id;
                 $this->query->executeSql($profileSql, $profileParam);
             }
     
             if($playerSql && $playerParam){
+                $playerSql .= " WHERE profile = :profile";
+                $playerParam['profile'] = $this->id;
                 $this->query->executeSql($playerSql, $playerParam);
             }
         }
@@ -192,6 +360,89 @@ class Player extends \User
         }
         return $playersInfo;
     }
-    
 
+    /**
+     * Change the user's password and notify them if needed
+     *
+     * @param string $password The new password for the user
+     * @param bool $notify If true, notify the user of the password change via email
+     *
+     * @throws UserException If the password change fails
+     */
+    public function changePlayerPassword(string $oldPassword, string $newPassword): void
+    {
+        $tblLogger = LoggerMgr::TABLE;
+        $tblProfile = ProfileMgr::TABLE;
+        $sql = "SELECT {$tblLogger}.*, {$tblProfile}.name  FROM $tblLogger INNER JOIN $tblProfile ON {$tblLogger}.id = {$tblProfile}.logger WHERE {$tblProfile}.id = :id";
+
+        if ($loggerInfo = $this->query->executeSql($sql, ['id'=>$this->id])['rows']) {
+             $loggerInfo = $loggerInfo[0];   
+        }
+        else{
+            throw new UserException("Unable to resolve user credentials");
+        }
+
+        $storedHash = $loggerInfo['password'];
+        if (!password_verify($oldPassword, $storedHash)) {
+            throw new UserException("Old password is incorrect");
+        }
+
+        if (password_verify($newPassword, $storedHash)) {
+            throw new UserException("New password cannot be the same as old password");
+        }
+        
+        $loggerMgr = new LoggerMgr();
+        $result = $loggerMgr->validatePassword($newPassword);
+
+        if ($result['errors']) {
+            throw new UserException(implode(', ', $result['errors']));
+        }
+
+        $newHashedPassword = $result['data'];
+        $sql = "UPDATE $tblLogger SET password = :password WHERE id = :id";
+        $this->query->executeSql($sql, ['password' => $newHashedPassword, 'id' => $loggerInfo['id']]);
+
+        // =====================
+        // OPTIONAL: INVALIDATE SESSIONS
+        // =====================
+        // Example (if you store access tokens):
+        // $this->invalidateSessions($loggerId);
+
+        $userInfo = $this->getInfo();
+        $settings = (new Settings(SETTING_FILE, true))->getDetails();
+
+        $body = "
+            <div style='font-family:Arial, Helvetica, sans-serif; background:#f4f6fb; padding:30px;'>
+                <div style='max-width:600px; margin:auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 6px 24px rgba(0,0,0,0.08);'>
+                    <div style='padding:35px;'>P
+                        <p style='font-size:15px;'>Hello <strong>{$loggerInfo['name']}</strong>,</p>
+
+                        <p style='font-size:15px; line-height:1.6; color:#444; margin-bottom:10px;'>
+                            This is to notify you that your password on <strong>{$settings->sitename}</strong> was successfully changed on 
+                            <strong>" . (new DateTime())->format("Y-m-d H:i:s") . "</strong>.
+                        </p>
+
+                        <p style='font-size:15px; line-height:1.6; color:#444; margin-bottom:10px;'>
+                            If you made this change, no further action is required. If you did <strong>not</strong> made this password change, 
+                            please reset your password immediately. And contact our support team at 
+                            <strong>{$settings->emails[1]}@{$settings->domain}</strong>.
+                        </p>
+
+                        <p style='font-size:15px; line-height:1.6; color:#444; margin-bottom:40px;'>
+                            For your security, we never include passwords in emails. Keep your account details safe and never share your login 
+                            information.
+                        </p>
+                    </div>
+                    <div style='background:#f4f6fb; padding:18px; text-align:center; font-size:12px; color:#777;'>
+                        © " . date('Y') . " {$settings->sitename}
+                    </div>
+                </div>
+            </div>
+        ";
+
+        $Notification = new Notification();
+        $to = [$loggerInfo['name'] => $loggerInfo['email']];
+        $from = [$settings->sitename => "{$settings->emails[0]}@{$settings->domain}"];
+        $Notification->sendMail(['to' => $to, 'from' => $from], 'Your Password Has Been Changed', $body);        
+    }
 }

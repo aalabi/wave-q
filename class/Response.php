@@ -151,7 +151,7 @@ class Response
         }
 
         // encode the responseData array to json response output
-        echo json_encode($this->_responseData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_NUMERIC_CHECK | JSON_HEX_QUOT);
+        echo json_encode($this->_responseData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_QUOT);
         exit;
     }
 

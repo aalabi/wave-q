@@ -33,6 +33,9 @@ class User
     /** @var int profile table id*/
     protected int $id;
 
+    /** @var array profile info*/
+    protected array $info;
+
     /** @var array collection of status values */
     public const STATUS = ['active', 'inactive', 'active'=>'active', 'inactive'=>'inactive'];
 
@@ -107,7 +110,7 @@ class User
                     throw new UserException(implode(', ', $result['errors']));
                 }
                 $password = $result['data'];
-                $otp = rand(100_000, 999_999);
+                $otp = random_int(100_000, 999_999);
                 $result = $loggerMgr->validateActivationToken($otp);
                 if ($result['errors']) {
                     throw new UserException(implode(', ', $result['errors']));
@@ -241,7 +244,8 @@ class User
                         © " . date('Y') . " {$settings->sitename}
                     </div>
                 </div>
-            </div>";
+            </div>
+        ";
         $notification = new \Notification();
         $to = [$userInfo['profile']['name']=>$userInfo['logger']['email']];
         $from = [$settings->sitename=>"{$settings->emails[0]}@{$settings->domain}"];

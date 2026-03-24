@@ -9,17 +9,20 @@ RewriteCond %{REQUEST_FILENAME} !-d
 RewriteCond %{REQUEST_FILENAME} !-f
 
 # Authentication
-RewriteRule    ^sessions/([0-9]+)$          controller/sessions.php?id=$1    [L]    # Handle session id requests
-RewriteRule    ^sessions$                   controller/sessions.php      [L]    # Handle login requests
+RewriteRule    ^sessions/([0-9]+)$          controller/sessions.php?id=$1    [L]
+RewriteRule    ^sessions$                   controller/sessions.php      [L]    
 
 # Player
-RewriteRule    ^players/([0-9]+)$          controller/players.php?id=$1    [L]    # Handle player id requests
-RewriteRule    ^players$                   controller/players.php      [L]    # Handle players requests
+RewriteRule     ^players/([0-9]+)/activate$                 controller/players.php?action=activate&id=$1 [L]
+RewriteRule     ^players/([0-9]+)/resend-activation-token$  controller/players.php?action=resend-activation-token&id=$1 [L]
+RewriteRule     ^players/([0-9]+)/change-password$          controller/players.php?action=change-password&id=$1 [L]
+RewriteRule     ^players/([0-9]+)$                          controller/players.php?id=$1 [L]
+RewriteRule     ^players$                                   controller/players.php [L]
 
-# Profiles
-RewriteRule    ^profiles/([0-9]+)$          controller/profiles.php?profileId=$1    [L]    # Handle profile id requests
-RewriteRule    ^profiles/page/([0-9]+)$     controller/profiles.php?page=$1    [L]    # Handle page requests
-RewriteRule    ^profiles$                   controller/profiles.php     [L]    # Handle profile requests
+# Question
+RewriteRule    ^questions/([0-9]+)$          controller/questions.php?id=$1    [L]
+RewriteRule    ^profiles/page/([0-9]+)$     controller/profiles.php?page=$1    [L]
+RewriteRule    ^questions$                   controller/questions.php     [L]    # Handle profile requests
 
 # Schools
 RewriteRule    ^schools/([0-9]+)$          controller/schools.php?schoolId=$1    [L]    # Handle school id requests
