@@ -13,9 +13,15 @@ RewriteRule    ^sessions/([0-9]+)$          controller/sessions.php?id=$1    [L]
 RewriteRule    ^sessions$                   controller/sessions.php      [L]    
 
 # Player
+# Activation
 RewriteRule     ^players/([0-9]+)/activate$                 controller/players.php?action=activate&id=$1 [L]
 RewriteRule     ^players/([0-9]+)/resend-activation-token$  controller/players.php?action=resend-activation-token&id=$1 [L]
+# Authenticated actions
 RewriteRule     ^players/([0-9]+)/change-password$          controller/players.php?action=change-password&id=$1 [L]
+# Public auth flow
+RewriteRule     ^players/forgot-password$                   controller/players.php?action=forgot-password [L]
+RewriteRule     ^players/reset-password$                    controller/players.php?action=reset-password [L]
+# General player routes
 RewriteRule     ^players/([0-9]+)$                          controller/players.php?id=$1 [L]
 RewriteRule     ^players$                                   controller/players.php [L]
 

@@ -67,7 +67,7 @@ if ($id !== null) {
             
         Response::sendGoodResponse(["Activation token resent"], code: Response::OK);
     }
-    // POST /players/{id}/change-password used for cahnging password
+    // POST /players/{id}/change-password used for changing password
     elseif ($method === 'POST' && $action === 'change-password') {  
         $token = Functions::requireAuth();
         if ($id != Session::profileIdFromAccessToken($token)) {
@@ -87,7 +87,29 @@ if ($id !== null) {
             
         Response::sendGoodResponse(["Password changed successfully"], code: Response::OK);
     }
-    // POST /players/{id}/change-password used for cahnging password
+    else {
+        Response::sendBadResponse(Response::METHOD_NOT_ALLOWED, ["Invalid request"]);
+    }
+}
+else {
+    // POST /players
+    if ($method === 'POST' && !$action) {
+        $jsonData = Functions::getJsonInput();
+
+        if (!isset($jsonData->name, $jsonData->email, $jsonData->phone, $jsonData->password, $jsonData->username)) {
+            Response::sendBadResponse(Response::BAD_REQUEST, ["Missing required fields"]);
+        }
+
+        try {
+            $player = Player::create($jsonData->name, ['player'], $jsonData->password, $jsonData->email, phone:$jsonData->phone, username:$jsonData->username);
+
+            Response::sendGoodResponse(["Player created"], $player, true, Response::CREATED);
+
+        } catch (UserException $e) {
+            Response::sendBadResponse(Response::BAD_REQUEST, [$e->getMessage()]);
+        }
+    }
+    // POST /players/forgot-password used for forgot password
     elseif ($method === 'POST' && $action === 'forgot-password') {
         $jsonData = Functions::getJsonInput();
 
@@ -103,27 +125,21 @@ if ($id !== null) {
 
         Response::sendGoodResponse(["If account exists, reset instructions sent"], code: Response::OK);
     }
-    else {
-        Response::sendBadResponse(Response::METHOD_NOT_ALLOWED, ["Invalid request"]);
-    }
-}
-else {
-    // POST /players
-    if ($method === 'POST') {
-        $jsonData = Functions::getJsonInput();
+    // POST /players/reset-password used for changing password during forgot password process
+    elseif ($method === 'POST' && $action === 'reset-password') {
 
-        if (!isset($jsonData->name, $jsonData->email, $jsonData->phone, $jsonData->password, $jsonData->username)) {
+        $jsonData = Functions::getJsonInput();
+        if (!isset($jsonData->email, $jsonData->token, $jsonData->newPassword)) {
             Response::sendBadResponse(Response::BAD_REQUEST, ["Missing required fields"]);
         }
-
+        
         try {
-            $player = Player::create($jsonData->name, ['player'], $jsonData->password, $jsonData->email, phone:$jsonData->phone, username:$jsonData->username);
-
-            Response::sendGoodResponse(["Player created"], $player, true, Response::CREATED);
-
+            Player::apiResetPassword($jsonData->email, $jsonData->token, $jsonData->newPassword);
         } catch (UserException $e) {
             Response::sendBadResponse(Response::BAD_REQUEST, [$e->getMessage()]);
         }
+
+        Response::sendGoodResponse(["Password reset successful"], code: Response::OK);
     }
     // GET /players (optional list)
     elseif ($method === 'GET') {

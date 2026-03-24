@@ -214,7 +214,7 @@ class Player extends \User
                             </p>
                         </div>
                         <div style='background:#f4f6fb; padding:18px; text-align:center; font-size:12px; color:#777;'>
-                            © " . date('Y') . " {$settings->sitename}
+                            &copy; " . date('Y') . " {$settings->sitename}
                         </div>
                     </div>
                 </div>";
@@ -408,14 +408,135 @@ class Player extends \User
         // Example (if you store access tokens):
         // $this->invalidateSessions($loggerId);
 
-        $userInfo = $this->getInfo();
-        $settings = (new Settings(SETTING_FILE, true))->getDetails();
+        self::sendChangedPasswordMail($loggerInfo['email'], $loggerInfo['name']);
+    }
 
+    /**
+     * Request a password reset for a user
+     *
+     * @param string $email The email address of the user to request a password reset for
+     *
+     * This function sends a password reset email to the user with a one-time password (OTP) that can be used to reset their password.
+     * The OTP is valid for 15 minutes. If the user does not request a password reset, they can ignore this email. Their account remains secure.
+     */
+    public static function requestPasswordReset(string $email): void
+    {
+        $tblLogger = LoggerMgr::TABLE;
+        $tblProfile = ProfileMgr::TABLE;
+        $query = new Query();
+        $sql = "SELECT {$tblLogger}.*, {$tblProfile}.name  
+            FROM $tblLogger INNER JOIN $tblProfile ON {$tblLogger}.id = {$tblProfile}.logger 
+            WHERE {$tblLogger}.email = :email";
+
+        if ($loggerInfo = $query->executeSql($sql, ['email'=>$email])['rows']) {
+             $loggerInfo = $loggerInfo[0];   
+        }
+        else{
+            return;
+        }
+
+        $token = random_int(100_000, 999_999);
+        $expiry = (new DateTime('+15 minutes'))->format('Y-m-d H:i:s');
+
+        $sql = "UPDATE $tblLogger SET reset_token = :token, reset_time = :expiry WHERE id = :id";
+        $query->executeSql($sql, ['token' => $token, 'expiry' => $expiry, 'id' => $loggerInfo['id']]);
+
+        $settings = (new Settings(SETTING_FILE, true))->getDetails();
+        $body = "
+            <div style='font-family:Arial, Helvetica, sans-serif; background:#f4f6fb; padding:30px;'>
+                <div style='max-width:600px; margin:auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 6px 24px rgba(0,0,0,0.08);'>
+                    
+                    <div style='padding:35px;'>
+                        <p style='font-size:15px;'>Hello <strong>{$loggerInfo['name']}</strong>,</p>
+
+                        <p style='font-size:15px; line-height:1.6; color:#444;'>
+                            We received a request to reset your password on <strong>{$settings->sitename}</strong>.
+                        </p>
+
+                        <p style='font-size:15px; line-height:1.6; color:#444;'>
+                            Please use the One-Time Password (OTP) below to reset your password:
+                        </p>
+
+                        <div style='text-align:center; margin:30px 0;'>
+                            <div style='display:inline-block;
+                                font-size:32px;
+                                letter-spacing:8px;
+                                padding:18px 28px;
+                                background:#007bff;
+                                color:#ffffff;
+                                border-radius:10px;
+                                font-weight:bold;'>
+                                $token
+                            </div>
+                            <p style='margin-top:12px; font-size:13px; color:#666;'>
+                                This OTP expires in 15 minutes
+                            </p>
+                        </div>
+
+                        <p style='font-size:14px; color:#666; line-height:1.6;'>
+                            If you did not request a password reset, please ignore this email. Your account remains secure.
+                        </p>
+
+                        <p style='font-size:14px; color:#666; line-height:1.6; margin-top:20px;'>
+                            If you need help, contact our support team at 
+                            <strong>{$settings->emails[1]}@{$settings->domain}</strong>.
+                        </p>
+                    </div>
+
+                    <div style='background:#f4f6fb; padding:18px; text-align:center; font-size:12px; color:#777;'>
+                        &copy; " . date('Y') . " {$settings->sitename}
+                    </div>
+
+                </div>
+            </div>
+        ";
+
+        $Notification = new Notification();
+        $to = [$loggerInfo['name'] => $loggerInfo['email']];
+        $from = [$settings->sitename => "{$settings->emails[0]}@{$settings->domain}"];
+        $Notification->sendMail(['to' => $to, 'from' => $from], 'Password Reset', $body);        
+    }
+
+    public static function apiResetPassword(string $email, string $token, string $newPassword): void
+    {
+        $tblLogger = LoggerMgr::TABLE;
+        $tblProfile = ProfileMgr::TABLE;
+        $query = new Query();
+        $sql = "SELECT {$tblLogger}.*, {$tblProfile}.name  
+            FROM $tblLogger INNER JOIN $tblProfile ON {$tblLogger}.id = {$tblProfile}.logger 
+            WHERE {$tblLogger}.email = :email";
+
+        if ($loggerInfo = $query->executeSql($sql, ['email'=>$email])['rows']) {
+             $loggerInfo = $loggerInfo[0];   
+        }
+        else{
+            throw new UserException("Invalid credentials");
+        }
+
+        if ($loggerInfo['reset_token'] != $token || new DateTime() > new DateTime($loggerInfo['reset_time'])
+        ) {
+            throw new UserException("Invalid or expired token");
+        }
+
+        $result = (new LoggerMgr())->validatePassword($newPassword);
+        if ($result['errors']) {
+            throw new UserException(implode(', ', $result['errors']));
+        }
+
+        $hashedPassword = $result['data'];
+        $sql = "UPDATE $tblLogger SET password = :password, reset_token = NULL, reset_time = NULL WHERE id = :id";
+        $query->executeSql($sql, ['password' => $hashedPassword, 'id' => $loggerInfo['id']]);
+
+        self::sendChangedPasswordMail($email, $loggerInfo['name']);
+    }
+
+    private static function sendChangedPasswordMail($email, $name) {
+        $settings = (new Settings(SETTING_FILE, true))->getDetails();
         $body = "
             <div style='font-family:Arial, Helvetica, sans-serif; background:#f4f6fb; padding:30px;'>
                 <div style='max-width:600px; margin:auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 6px 24px rgba(0,0,0,0.08);'>
                     <div style='padding:35px;'>P
-                        <p style='font-size:15px;'>Hello <strong>{$loggerInfo['name']}</strong>,</p>
+                        <p style='font-size:15px;'>Hello <strong>$name</strong>,</p>
 
                         <p style='font-size:15px; line-height:1.6; color:#444; margin-bottom:10px;'>
                             This is to notify you that your password on <strong>{$settings->sitename}</strong> was successfully changed on 
@@ -434,15 +555,15 @@ class Player extends \User
                         </p>
                     </div>
                     <div style='background:#f4f6fb; padding:18px; text-align:center; font-size:12px; color:#777;'>
-                        © " . date('Y') . " {$settings->sitename}
+                        &copy; " . date('Y') . " {$settings->sitename}
                     </div>
                 </div>
             </div>
         ";
 
         $Notification = new Notification();
-        $to = [$loggerInfo['name'] => $loggerInfo['email']];
+        $to = [$name => $email];
         $from = [$settings->sitename => "{$settings->emails[0]}@{$settings->domain}"];
-        $Notification->sendMail(['to' => $to, 'from' => $from], 'Your Password Has Been Changed', $body);        
+        $Notification->sendMail(['to' => $to, 'from' => $from], 'Your Password Has Been Changed', $body);
     }
 }
