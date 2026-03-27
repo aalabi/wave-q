@@ -143,7 +143,7 @@ class LoggerMgr extends ColumnMgr
     {
         $validation['data'] = $password;
         $validation['errors'] = [];
-        if (!preg_match("/^(?=.*[A-Za-z])(?=.*[0-9])[A-Za-z0-9]{8,}$/", $password)) {
+        if (!preg_match("/^(?=.*[A-Za-z])(?=.*[0-9]).{8,}$/", $password)) {
             $validation['data'] = null;
             $validation['errors'] = ["failed password rule (min 8 characters, at least one alphabet and one digit)"];
         }
