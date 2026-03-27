@@ -87,6 +87,27 @@ if ($id !== null) {
             
         Response::sendGoodResponse(["Password changed successfully"], code: Response::OK);
     }
+    // POST /players/{id}/change-username
+    elseif ($method === 'POST' && $action === 'change-username') {
+
+        $token = Functions::requireAuth();
+        if ($id != Session::profileIdFromAccessToken($token)) {
+            Response::sendBadResponse(Response::UNAUTHORIZED, ["player/access token mismatch"]);
+        }
+
+        $jsonData = Functions::getJsonInput();
+        if (!isset($jsonData->username) || empty($jsonData->username)) {
+            Response::sendBadResponse(Response::BAD_REQUEST, ["Username is required"]);
+        }
+
+        try {
+            $player->changeUsername($jsonData->username);
+        } catch (UserException $e) {
+            Response::sendBadResponse(Response::BAD_REQUEST, [$e->getMessage()]);
+        }
+
+        Response::sendGoodResponse(["Username updated successfully"], code: Response::OK);
+    }
     else {
         Response::sendBadResponse(Response::METHOD_NOT_ALLOWED, ["Invalid request"]);
     }

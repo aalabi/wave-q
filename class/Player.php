@@ -497,6 +497,15 @@ class Player extends \User
         $Notification->sendMail(['to' => $to, 'from' => $from], 'Password Reset', $body);        
     }
 
+    /**
+     * Resets the user's password and sends a notification email
+     *
+     * @param string $email The email address of the user
+     * @param string $token The password reset token
+     * @param string $newPassword The new password for the user
+     *
+     * @throws UserException If the password reset fails
+     */
     public static function apiResetPassword(string $email, string $token, string $newPassword): void
     {
         $tblLogger = LoggerMgr::TABLE;
@@ -530,6 +539,35 @@ class Player extends \User
         self::sendChangedPasswordMail($email, $loggerInfo['name']);
     }
 
+    public function changeUsername(string $username): void
+    {
+        $tblLogger = LoggerMgr::TABLE;
+        $tblProfile = ProfileMgr::TABLE;
+        $sql = "SELECT {$tblLogger}.*, {$tblProfile}.name  
+            FROM $tblLogger INNER JOIN $tblProfile ON {$tblLogger}.id = {$tblProfile}.logger 
+            WHERE {$tblProfile}.id = :id";
+        $loggerInfo = $this->query->executeSql($sql, ['id'=>$this->id])['rows'][0];
+
+        $loggerMgr = new LoggerMgr();
+        $result = $loggerMgr->validateUsername($username);
+
+        if ($result['errors']) {
+            throw new UserException(implode(', ', $result['errors']));
+        }
+
+        $username = $result['data'];
+        $sql = "UPDATE $tblLogger SET username = :username WHERE id = :id";
+        $this->query->executeSql($sql, ['username' => $username, 'id' => $loggerInfo['id']]);
+
+        self::sendChangedIdentityMail($loggerInfo['email'], $loggerInfo['name'], ['username' => $username], Authentication::ALL_IDENTITY_TYPE['username']);
+    }
+
+    /**
+     * Sends an email notification to the user about their password being changed
+     *
+     * @param string $email The email address of the user
+     * @param string $name The name of the user
+     */
     private static function sendChangedPasswordMail($email, $name) {
         $settings = (new Settings(SETTING_FILE, true))->getDetails();
         $body = "
@@ -565,5 +603,49 @@ class Player extends \User
         $to = [$name => $email];
         $from = [$settings->sitename => "{$settings->emails[0]}@{$settings->domain}"];
         $Notification->sendMail(['to' => $to, 'from' => $from], 'Your Password Has Been Changed', $body);
+    }
+
+    /**
+     * Sends an email notification to the user about their identity being changed
+     *
+     * @param string $email The email address of the user
+     * @param string $name The name of the user
+     * @param array $otherInfo Other information about the user
+     * @param string $identityType The type of identity being changed
+     */
+    private static function sendChangedIdentityMail($email, $name, array $otherInfo = [], $identityType = Authentication::ALL_IDENTITY_TYPE['email']) {
+        $settings = (new Settings(SETTING_FILE, true))->getDetails();
+        $body = "
+            <div style='font-family:Arial, Helvetica, sans-serif; background:#f4f6fb; padding:30px;'>
+                <div style='max-width:600px; margin:auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 6px 24px rgba(0,0,0,0.08);'>
+                    <div style='padding:35px;'>P
+                        <p style='font-size:15px;'>Hello <strong>$name</strong>,</p>
+
+                        <p style='font-size:15px; line-height:1.6; color:#444; margin-bottom:10px;'>
+                            This is to notify you that your ".strtoupper($identityType)." on <strong>{$settings->sitename}</strong> was successfully changed on 
+                            <strong>" . (new DateTime())->format("Y-m-d H:i:s") . "</strong>.
+                        </p>
+
+                        <p style='font-size:15px; line-height:1.6; color:#444; margin-bottom:10px;'>
+                            If you made this change, no further action is required. If you did <strong>not</strong> made this change, 
+                            please contact our support team at <strong>{$settings->emails[1]}@{$settings->domain}</strong> immediately.
+                        </p>
+
+                        <p style='font-size:15px; line-height:1.6; color:#444; margin-bottom:40px;'>
+                            For your security, we never include passwords in emails. Keep your account details safe and never share your login 
+                            information.
+                        </p>
+                    </div>
+                    <div style='background:#f4f6fb; padding:18px; text-align:center; font-size:12px; color:#777;'>
+                        &copy; " . date('Y') . " {$settings->sitename}
+                    </div>
+                </div>
+            </div>
+        ";
+
+        $Notification = new Notification();
+        $to = [$name => $email];
+        $from = [$settings->sitename => "{$settings->emails[0]}@{$settings->domain}"];
+        $Notification->sendMail(['to' => $to, 'from' => $from], "Your ".strtoupper($identityType)." was Changed", $body);
     }
 }
